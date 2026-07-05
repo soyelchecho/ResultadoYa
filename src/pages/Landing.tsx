@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box, Button, Container, Typography, Stack, Chip,
-  Grid, Card, CardContent, Divider,
+  Grid, Card, CardContent, Divider, TextField, Alert,
 } from '@mui/material'
-import { Shuffle, EmojiEvents, Google, Groups, SportsScore } from '@mui/icons-material'
+import { Shuffle, EmojiEvents, Google, Groups, SportsScore, Email } from '@mui/icons-material'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
+import { supabase } from '@/lib/supabase'
 import { glowText, goldGlow } from '@/theme'
 
 const MotionBox = motion(Box)
@@ -50,7 +51,35 @@ const features = [
 export default function Landing() {
   const navigate = useNavigate()
   const { user, signInWithGoogle } = useAuthStore()
-  const [signingIn, setSigningIn] = useState(false)
+  const [signingIn, setSigningIn]   = useState(false)
+  const [email, setEmail]           = useState('')
+  const [emailChecking, setEmailChecking] = useState(false)
+  const [emailError, setEmailError] = useState('')
+
+  const handleEmailLookup = async () => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed) return
+    setEmailError('')
+    setEmailChecking(true)
+    try {
+      const { data, error } = await supabase
+        .from('room_players')
+        .select('room_id, rooms(code)')
+        .eq('email', trimmed)
+        .limit(1)
+        .single()
+      if (error || !data) {
+        setEmailError('No encontramos ninguna sala con ese correo. Pedile al admin que te agregue.')
+        return
+      }
+      const roomCode = (data.rooms as unknown as { code: string })?.code
+      if (roomCode) navigate(`/sala/${roomCode}`)
+    } catch {
+      setEmailError('No encontramos ninguna sala con ese correo.')
+    } finally {
+      setEmailChecking(false)
+    }
+  }
 
   const handleCreateRoom = async () => {
     if (user) {
@@ -172,6 +201,37 @@ export default function Landing() {
                     Logueado como <strong style={{ color: '#22C55E' }}>{user.display_name}</strong>
                   </Typography>
                 )}
+
+                {/* Email lookup for invited players */}
+                <Box sx={{ mt: 4, maxWidth: 460 }}>
+                  <Divider sx={{ mb: 2.5, borderColor: 'rgba(255,255,255,0.07)', '&::before, &::after': { borderColor: 'rgba(255,255,255,0.07)' } }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
+                      ¿El admin te invitó por correo?
+                    </Typography>
+                  </Divider>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                    <TextField
+                      type="email"
+                      size="small"
+                      placeholder="tu@correo.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleEmailLookup() }}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'rgba(255,255,255,0.03)' } }}
+                    />
+                    <Button
+                      variant="outlined"
+                      startIcon={<Email />}
+                      onClick={handleEmailLookup}
+                      disabled={emailChecking || !email.trim()}
+                      sx={{ whiteSpace: 'nowrap', borderColor: 'rgba(34,197,94,0.35)', color: 'primary.main' }}
+                    >
+                      {emailChecking ? 'Buscando...' : 'Ver mi resultado'}
+                    </Button>
+                  </Stack>
+                  {emailError && <Alert severity="error" sx={{ mt: 1.5 }}>{emailError}</Alert>}
+                </Box>
               </MotionBox>
             </Grid>
 

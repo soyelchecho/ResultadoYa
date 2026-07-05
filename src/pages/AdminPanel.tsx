@@ -4,10 +4,10 @@ import {
   Box, Button, Card, CardContent, Container, Typography,
   Stack, Chip, Alert, CircularProgress, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  IconButton, Tooltip, Avatar,
+  IconButton, Tooltip, Avatar, TextField,
 } from '@mui/material'
 import {
-  ArrowBack, PlayArrow, Lock, SportsScore, PersonRemove, EmojiEvents,
+  ArrowBack, PlayArrow, Lock, SportsScore, PersonRemove, EmojiEvents, PersonAddAlt1, MailOutline,
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
@@ -30,6 +30,11 @@ export default function AdminPanel() {
   const [closing, setClosing]     = useState(false)
   const [error, setError]         = useState('')
   const [resultOpen, setResultOpen] = useState(false)
+  const [addOpen, setAddOpen]     = useState(false)
+  const [newName, setNewName]     = useState('')
+  const [newEmail, setNewEmail]   = useState('')
+  const [addingGuest, setAddingGuest] = useState(false)
+  const [addError, setAddError]   = useState('')
   const [scoreHome, setScoreHome] = useState(0)
   const [scoreAway, setScoreAway] = useState(0)
   const [savingResult, setSavingResult] = useState(false)
@@ -126,6 +131,38 @@ export default function AdminPanel() {
     } catch (e: unknown) {
       setError((e as Error).message)
       setSavingResult(false)
+    }
+  }
+
+  // ── Add guest by email ────────────────────────────────────────────────────
+
+  const handleAddGuest = async () => {
+    if (!room) return
+    const name  = newName.trim()
+    const email = newEmail.trim().toLowerCase()
+    if (!name || !email) return
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setAddError('Ingresá un correo válido.'); return }
+    setAddingGuest(true)
+    setAddError('')
+    try {
+      const { error: err } = await supabase.from('room_players').insert({
+        room_id: room.id,
+        user_id: crypto.randomUUID(),
+        display_name: name,
+        email,
+        is_guest: true,
+      })
+      if (err) throw err
+      setNewName('')
+      setNewEmail('')
+      setAddOpen(false)
+    } catch (e: unknown) {
+      const msg = (e as { code?: string; message?: string }).code === '23505'
+        ? 'Ese correo ya está en esta sala.'
+        : (e as Error).message || 'No se pudo agregar el jugador.'
+      setAddError(msg)
+    } finally {
+      setAddingGuest(false)
     }
   }
 
@@ -342,9 +379,19 @@ export default function AdminPanel() {
           {/* Players list */}
           <Card>
             <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Participantes ({players.length})
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Typography variant="h6">Participantes ({players.length})</Typography>
+                {room.status === 'waiting' && (
+                  <Button
+                    size="small"
+                    startIcon={<PersonAddAlt1 />}
+                    onClick={() => { setAddOpen(true); setAddError('') }}
+                    sx={{ color: 'primary.main', fontSize: '0.75rem' }}
+                  >
+                    Agregar por correo
+                  </Button>
+                )}
+              </Box>
               <Stack spacing={1}>
                 {players.map(p => (
                   <Box key={p.id} display="flex" alignItems="center" gap={1.5}>
@@ -354,6 +401,11 @@ export default function AdminPanel() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
                         {p.display_name}
+                        {(p as RoomPlayer & { email?: string }).email && (
+                          <Typography component="span" variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                            · {(p as RoomPlayer & { email?: string }).email}
+                          </Typography>
+                        )}
                       </Typography>
                       {p.score_home !== null && p.score_away !== null && (
                         <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
@@ -463,6 +515,50 @@ export default function AdminPanel() {
             sx={{ background: 'linear-gradient(135deg, #FFD700, #F97316)', color: '#000', fontWeight: 800 }}
           >
             {savingResult ? 'Guardando...' : '✅ Confirmar Resultado'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add guest by email dialog */}
+      <Dialog open={addOpen} onClose={() => { setAddOpen(false); setNewName(''); setNewEmail('') }} fullWidth maxWidth="xs">
+        <DialogTitle display="flex" alignItems="center" gap={1}>
+          <MailOutline sx={{ color: 'primary.main' }} />
+          Agregar participante por correo
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
+            El jugador ingresa su correo en la pantalla principal para ver el resultado que le tocó.
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="Nombre"
+              placeholder="Ej: Carlos"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              fullWidth
+              autoFocus
+            />
+            <TextField
+              label="Correo electrónico"
+              type="email"
+              placeholder="carlos@email.com"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              fullWidth
+              onKeyDown={e => { if (e.key === 'Enter') handleAddGuest() }}
+            />
+          </Stack>
+          {addError && <Alert severity="error" sx={{ mt: 2 }}>{addError}</Alert>}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button onClick={() => { setAddOpen(false); setNewName(''); setNewEmail('') }}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleAddGuest}
+            disabled={addingGuest || !newName.trim() || !newEmail.trim()}
+            startIcon={addingGuest ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <PersonAddAlt1 />}
+          >
+            {addingGuest ? 'Agregando...' : 'Agregar'}
           </Button>
         </DialogActions>
       </Dialog>
