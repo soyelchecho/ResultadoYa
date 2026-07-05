@@ -205,7 +205,11 @@ export default function JoinRoom() {
                       {room.entry_price > 0 && (
                         <Chip
                           size="small"
-                          label={`$${room.entry_price.toLocaleString('es-CO')} entrada`}
+                          label={
+                            room.prize_type === 'fixed'
+                              ? `🏆 Premio: $${room.entry_price.toLocaleString('es-CO')}`
+                              : `$${room.entry_price.toLocaleString('es-CO')} entrada`
+                          }
                           sx={{ bgcolor: 'rgba(255,215,0,0.1)', color: '#FFD700' }}
                         />
                       )}
