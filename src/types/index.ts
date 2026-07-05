@@ -1,5 +1,6 @@
 export type RoomMode = 'sorteo' | 'pronostico'
 export type RoomStatus = 'waiting' | 'active' | 'finished'
+export type PrizeType = 'entry' | 'fixed'
 
 export interface Room {
   id: string
@@ -11,6 +12,7 @@ export interface Room {
   mode: RoomMode
   status: RoomStatus
   entry_price: number
+  prize_type: PrizeType
   admin_id: string
   admin_name: string
   created_at: string

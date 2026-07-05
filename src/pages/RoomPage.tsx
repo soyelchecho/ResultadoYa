@@ -183,7 +183,9 @@ export default function RoomPage() {
     ? players.filter(p => p.score_home === realScore.home && p.score_away === realScore.away)
     : []
 
-  const potTotal = room.entry_price * players.length
+  const potTotal = room.prize_type === 'fixed'
+    ? room.entry_price
+    : room.entry_price * players.length
   const prizePerWinner = winners.length > 0 ? Math.floor(potTotal / winners.length) : 0
   const fmt = (n: number) => n.toLocaleString('es-CO')
   const iAmWinner = winners.some(w => w.user_id === currentUserId)
@@ -264,7 +266,7 @@ export default function RoomPage() {
                                               <CheckCircle   sx={{ fontSize: '1rem !important' }} />
                 }
                 label={
-                  room.status === 'waiting'  ? 'Esperando sorteo' :
+                  room.status === 'waiting'  ? (room.mode === 'sorteo' ? '⏳ Inscripción abierta' : '⏳ Esperando pronósticos') :
                   room.status === 'active'   ? '⚡ En juego' :
                                                '✅ Terminado'
                 }
@@ -279,7 +281,7 @@ export default function RoomPage() {
               {potTotal > 0 && (
                 <Chip
                   icon={<EmojiEvents sx={{ fontSize: '1rem !important', color: '#FFD700 !important' }} />}
-                  label={`Pozo: $${fmt(potTotal)}`}
+                  label={room.prize_type === 'fixed' ? `Premio: $${fmt(potTotal)}` : `Pozo: $${fmt(potTotal)}`}
                   sx={{ bgcolor: 'rgba(255,215,0,0.1)', color: '#FFD700', fontWeight: 700 }}
                 />
               )}
@@ -373,8 +375,8 @@ export default function RoomPage() {
           </MotionCard>
         )}
 
-        {/* My score card (active/finished sorteo) */}
-        {hasMyScore && room.status !== 'waiting' && (
+        {/* My score card — shown as soon as the player has a score */}
+        {hasMyScore && (
           <Card
             sx={{
               mb: 3,
@@ -409,18 +411,13 @@ export default function RoomPage() {
           </Card>
         )}
 
-        {/* Waiting state — sorteo */}
-        {room.status === 'waiting' && room.mode === 'sorteo' && (
+        {/* Waiting state — sorteo, player not yet joined */}
+        {room.status === 'waiting' && room.mode === 'sorteo' && !hasMyScore && !isAdmin && (
           <Card sx={{ mb: 3, p: 2.5, background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.15)', textAlign: 'center' }}>
             <HourglassEmpty sx={{ color: 'text.secondary', fontSize: 32, mb: 1 }} />
             <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              El admin va a asignar los marcadores al azar cuando cierre el registro.
+              Aún no te uniste. Usá el código para ingresar y recibir tu marcador al azar.
             </Typography>
-            {isAdmin && (
-              <Typography variant="body2" sx={{ color: 'primary.main', mt: 1, fontWeight: 600 }}>
-                Vas al Panel Admin para iniciar el sorteo →
-              </Typography>
-            )}
           </Card>
         )}
 

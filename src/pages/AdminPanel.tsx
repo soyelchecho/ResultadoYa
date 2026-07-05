@@ -191,7 +191,9 @@ export default function AdminPanel() {
   }
 
   const fmt = (n: number) => n.toLocaleString('es-CO')
-  const potTotal = room.entry_price * players.length
+  const potTotal = room.prize_type === 'fixed'
+    ? room.entry_price
+    : room.entry_price * players.length
 
   // Winners (if result entered)
   const realScore = room.real_score_home !== null && room.real_score_away !== null
@@ -245,7 +247,7 @@ export default function AdminPanel() {
                 />
                 {potTotal > 0 && (
                   <Chip
-                    label={`Pozo: $${fmt(potTotal)}`}
+                    label={room.prize_type === 'fixed' ? `Premio: $${fmt(potTotal)}` : `Pozo: $${fmt(potTotal)}`}
                     sx={{ bgcolor: 'rgba(255,215,0,0.1)', color: '#FFD700', fontWeight: 700 }}
                   />
                 )}

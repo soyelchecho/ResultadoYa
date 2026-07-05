@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { generateRoomCode } from '@/lib/roomCode'
 import { generateScores, maxParticipants } from '@/lib/scores'
-import type { RoomMode } from '@/types'
+import type { RoomMode, PrizeType } from '@/types'
 import { glowText } from '@/theme'
 
 const MotionBox = motion(Box)
@@ -25,6 +25,7 @@ export default function CreateRoom() {
   const [teamAway, setTeamAway]     = useState('')
   const [maxGoals, setMaxGoals]     = useState(4)
   const [mode, setMode]             = useState<RoomMode>('sorteo')
+  const [prizeType, setPrizeType]   = useState<PrizeType>('entry')
   const [entryPrice, setEntryPrice] = useState<number>(10000)
   const [creating, setCreating]     = useState(false)
   const [error, setError]           = useState('')
@@ -32,7 +33,9 @@ export default function CreateRoom() {
 
   const possibleScores = generateScores(maxGoals).length
   const maxPlayers     = mode === 'sorteo' ? maxParticipants(maxGoals) : 999
-  const potExample     = entryPrice * (mode === 'sorteo' ? possibleScores : 20)
+  const potExample     = prizeType === 'fixed'
+    ? entryPrice
+    : entryPrice * (mode === 'sorteo' ? possibleScores : 20)
 
   const fmt = (n: number) => n.toLocaleString('es-CO')
 
@@ -56,6 +59,7 @@ export default function CreateRoom() {
         team_away: trimAway,
         max_goals: maxGoals,
         mode,
+        prize_type: prizeType,
         status: 'waiting',
         entry_price: entryPrice,
         admin_id: user.id,
@@ -206,13 +210,28 @@ export default function CreateRoom() {
             </CardContent>
           </Card>
 
-          {/* Entry price */}
+          {/* Prize config */}
           <Card>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>Precio de entrada</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>Premio</Typography>
+              <ToggleButtonGroup
+                value={prizeType}
+                exclusive
+                onChange={(_, v) => { if (v) setPrizeType(v) }}
+                fullWidth
+                sx={{ mb: 2.5 }}
+              >
+                <ToggleButton value="entry" sx={{ py: 1.2, fontWeight: 700, fontSize: '0.85rem' }}>
+                  💰 Precio por entrada
+                </ToggleButton>
+                <ToggleButton value="fixed" sx={{ py: 1.2, fontWeight: 700, fontSize: '0.85rem' }}>
+                  🏆 Premio fijo
+                </ToggleButton>
+              </ToggleButtonGroup>
+
               <TextField
                 type="number"
-                label="Valor por participante"
+                label={prizeType === 'entry' ? 'Valor por participante' : 'Premio total (lo pone el admin)'}
                 value={entryPrice}
                 onChange={e => setEntryPrice(Math.max(0, Number(e.target.value)))}
                 fullWidth
@@ -220,11 +239,14 @@ export default function CreateRoom() {
                   startAdornment: <InputAdornment position="start">$</InputAdornment>,
                 }}
               />
+
               <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.06)' }} />
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {mode === 'sorteo'
-                  ? `Si se llenan todos los ${possibleScores} cupos: pozo de $${fmt(entryPrice * possibleScores)}`
-                  : `Con 20 participantes: pozo de $${fmt(potExample)}`
+                {prizeType === 'fixed'
+                  ? `Premio fijo: $${fmt(entryPrice)} para quien acierte.`
+                  : mode === 'sorteo'
+                    ? `Con ${possibleScores} cupos llenos: pozo de $${fmt(entryPrice * possibleScores)}`
+                    : `Con 20 participantes: pozo de $${fmt(potExample)}`
                 }
               </Typography>
             </CardContent>
