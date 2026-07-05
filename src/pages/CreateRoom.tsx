@@ -32,6 +32,12 @@ export default function CreateRoom() {
   const [error, setError]           = useState('')
   const [signingIn, setSigningIn]   = useState(false)
 
+  // Email magic-link auth states
+  const [authEmail, setAuthEmail]   = useState('')
+  const [sendingLink, setSendingLink] = useState(false)
+  const [linkSent, setLinkSent]     = useState(false)
+  const [authError, setAuthError]   = useState('')
+
   const possibleScores = generateScores(maxGoals).length
   const maxPlayers     = mode === 'sorteo' ? maxParticipants(maxGoals) : 999
   const potExample     = prizeType === 'fixed'
@@ -104,23 +110,96 @@ export default function CreateRoom() {
     }
   }
 
+  const handleSendMagicLink = async () => {
+    setSendingLink(true)
+    setAuthError('')
+    const { error: err } = await supabase.auth.signInWithOtp({
+      email: authEmail.trim(),
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+    setSendingLink(false)
+    if (err) setAuthError(err.message)
+    else setLinkSent(true)
+  }
+
   if (!user) {
     return (
-      <Box display="flex" alignItems="center" justifyContent="center" minHeight="100vh">
-        <Card sx={{ p: 4, maxWidth: 400, textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ mb: 2 }}>Necesitás Google para crear una sala</Typography>
+      <Box display="flex" alignItems="center" justifyContent="center" minHeight="100vh" px={2}>
+        <Card sx={{ p: 4, maxWidth: 440, width: '100%' }}>
+          <Typography variant="h5" sx={{ mb: 0.5, fontWeight: 800 }}>Crear una sala</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
-            El admin de la sala necesita cuenta Google para gestionar el sorteo y los resultados.
+            Identificate para ser el admin y poder gestionar el partido.
           </Typography>
+
+          {/* Google */}
           <Button
             variant="contained"
             startIcon={<Google />}
             onClick={async () => { setSigningIn(true); await signInWithGoogle() }}
-            disabled={signingIn}
+            disabled={signingIn || sendingLink}
             fullWidth
+            sx={{ mb: 2 }}
           >
             {signingIn ? 'Conectando...' : 'Entrar con Google'}
           </Button>
+
+          <Divider sx={{ mb: 2.5 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', px: 1 }}>
+              o con tu correo (Gmail, Hotmail, etc.)
+            </Typography>
+          </Divider>
+
+          {!linkSent ? (
+            <Stack spacing={1.5}>
+              <TextField
+                label="Tu correo electrónico"
+                type="email"
+                placeholder="nombre@ejemplo.com"
+                value={authEmail}
+                onChange={e => setAuthEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && authEmail.trim()) handleSendMagicLink() }}
+                fullWidth
+                disabled={sendingLink}
+                autoComplete="email"
+              />
+              <Button
+                variant="outlined"
+                onClick={handleSendMagicLink}
+                disabled={sendingLink || !authEmail.trim()}
+                fullWidth
+              >
+                {sendingLink
+                  ? <><CircularProgress size={18} sx={{ mr: 1 }} />Enviando...</>
+                  : 'Enviar enlace de acceso'}
+              </Button>
+              {authError && <Alert severity="error">{authError}</Alert>}
+            </Stack>
+          ) : (
+            <Box
+              sx={{
+                p: 2.5, textAlign: 'center',
+                bgcolor: 'rgba(34,197,94,0.06)',
+                borderRadius: 2,
+                border: '1px solid rgba(34,197,94,0.2)',
+              }}
+            >
+              <Typography variant="h6" sx={{ mb: 0.5 }}>✉️ Enlace enviado</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Revisá tu correo <strong>{authEmail}</strong> y hacé click
+                en el enlace para continuar.
+              </Typography>
+              <Button
+                size="small"
+                onClick={() => { setLinkSent(false); setAuthError('') }}
+                sx={{ mt: 1.5, color: 'text.secondary' }}
+              >
+                Usar otro correo
+              </Button>
+            </Box>
+          )}
         </Card>
       </Box>
     )

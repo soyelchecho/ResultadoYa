@@ -27,7 +27,10 @@ export default function App() {
         setUser({
           id: session.user.id,
           email: session.user.email ?? '',
-          display_name: session.user.user_metadata?.full_name ?? session.user.email ?? 'Admin',
+          display_name:
+            session.user.user_metadata?.full_name ??
+            session.user.email?.split('@')[0] ??
+            'Admin',
           avatar_url: session.user.user_metadata?.avatar_url,
         })
       }
@@ -39,7 +42,10 @@ export default function App() {
         setUser({
           id: session.user.id,
           email: session.user.email ?? '',
-          display_name: session.user.user_metadata?.full_name ?? session.user.email ?? 'Admin',
+          display_name:
+            session.user.user_metadata?.full_name ??
+            session.user.email?.split('@')[0] ??
+            'Admin',
           avatar_url: session.user.user_metadata?.avatar_url,
         })
       } else if (event === 'SIGNED_OUT') {
