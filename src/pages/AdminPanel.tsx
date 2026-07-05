@@ -7,14 +7,14 @@ import {
   IconButton, Tooltip, Avatar, TextField,
 } from '@mui/material'
 import {
-  ArrowBack, PlayArrow, Lock, SportsScore, PersonRemove, EmojiEvents, PersonAddAlt1, MailOutline,
+  ArrowBack, Lock, SportsScore, PersonRemove, EmojiEvents, PersonAddAlt1, MailOutline,
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { useRoomStore } from '@/store/roomStore'
 import type { Room, RoomPlayer } from '@/types'
-import { generateScores, assignScores } from '@/lib/scores'
+import { generateScores } from '@/lib/scores'
 import { glowText, goldGlow } from '@/theme'
 
 const MotionBox = motion(Box)
@@ -26,7 +26,6 @@ export default function AdminPanel() {
   const { room, players, setRoom, setPlayers } = useRoomStore()
 
   const [loading, setLoading]     = useState(!room)
-  const [drawing, setDrawing]     = useState(false)
   const [closing, setClosing]     = useState(false)
   const [error, setError]         = useState('')
   const [resultOpen, setResultOpen] = useState(false)
@@ -73,29 +72,18 @@ export default function AdminPanel() {
     if (!loading && room && !isAdmin) navigate('/')
   }, [loading, room, isAdmin, navigate])
 
-  // ── Sorteo draw ────────────────────────────────────────────────────────────
+  // ── Close sorteo inscription (no more joins) ──────────────────────────────
 
-  const handleDraw = async () => {
-    if (!room || players.length === 0) return
-    setDrawing(true)
+  const handleCloseInscripcion = async () => {
+    if (!room) return
+    setClosing(true)
     setError('')
     try {
-      const assignments = assignScores(players.map(p => p.user_id), room.max_goals)
-
-      const updates = players.map(p => {
-        const score = assignments.get(p.user_id)
-        return supabase
-          .from('room_players')
-          .update({ score_home: score?.home ?? null, score_away: score?.away ?? null })
-          .eq('id', p.id)
-      })
-      await Promise.all(updates)
-
       await supabase.from('rooms').update({ status: 'active' }).eq('id', room.id)
       navigate(`/sala/${code}`)
     } catch (e: unknown) {
       setError((e as Error).message)
-      setDrawing(false)
+      setClosing(false)
     }
   }
 
@@ -145,12 +133,34 @@ export default function AdminPanel() {
     setAddingGuest(true)
     setAddError('')
     try {
+      let scoreHome: number | null = null
+      let scoreAway: number | null = null
+
+      if (room.mode === 'sorteo') {
+        const { data: taken } = await supabase
+          .from('room_players')
+          .select('score_home, score_away')
+          .eq('room_id', room.id)
+        const takenSet = new Set(
+          (taken ?? []).filter(p => p.score_home !== null).map(p => `${p.score_home}-${p.score_away}`)
+        )
+        const available = generateScores(room.max_goals).filter(
+          s => !takenSet.has(`${s.home}-${s.away}`)
+        )
+        if (available.length === 0) { setAddError('La sala está llena.'); setAddingGuest(false); return }
+        const picked = available[Math.floor(Math.random() * available.length)]
+        scoreHome = picked.home
+        scoreAway = picked.away
+      }
+
       const { error: err } = await supabase.from('room_players').insert({
         room_id: room.id,
         user_id: crypto.randomUUID(),
         display_name: name,
         email,
         is_guest: true,
+        score_home: scoreHome,
+        score_away: scoreAway,
       })
       if (err) throw err
       setNewName('')
@@ -182,7 +192,6 @@ export default function AdminPanel() {
 
   const fmt = (n: number) => n.toLocaleString('es-CO')
   const potTotal = room.entry_price * players.length
-  const allScores = generateScores(room.max_goals)
 
   // Winners (if result entered)
   const realScore = room.real_score_home !== null && room.real_score_away !== null
@@ -251,30 +260,26 @@ export default function AdminPanel() {
                 {room.mode === 'sorteo' ? (
                   <>
                     <Typography variant="h6" sx={{ mb: 1, color: 'primary.main' }}>
-                      🎲 Iniciar Sorteo
+                      🎲 Sala abierta — sorteo en curso
                     </Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2.5 }}>
-                      Se asignan {players.length} marcadores al azar entre los {players.length} participantes registrados.
-                      Los restantes {Math.max(0, allScores.length - players.length)} marcadores quedan sin asignar.
+                      {players.length > 0
+                        ? `${players.length} participante${players.length !== 1 ? 's' : ''} ya tienen su marcador asignado. Cada nuevo jugador recibe uno al azar al unirse.`
+                        : 'Compartí el código. Cada jugador que ingrese recibirá un marcador al azar automáticamente.'}
                     </Typography>
-                    {players.length === 0 && (
-                      <Alert severity="warning" sx={{ mb: 2 }}>
-                        No hay participantes todavía. Compartí el código de sala.
-                      </Alert>
-                    )}
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                     <Button
-                      variant="contained"
+                      variant="outlined"
                       size="large"
                       fullWidth
-                      startIcon={drawing ? undefined : <PlayArrow />}
-                      onClick={handleDraw}
-                      disabled={players.length === 0 || drawing}
-                      sx={{ py: 1.5, background: 'linear-gradient(135deg, #22C55E, #16A34A)', boxShadow: '0 0 20px rgba(34,197,94,0.3)' }}
+                      startIcon={closing ? undefined : <Lock />}
+                      onClick={handleCloseInscripcion}
+                      disabled={closing}
+                      sx={{ py: 1.5, borderColor: 'rgba(34,197,94,0.4)', color: 'primary.main' }}
                     >
-                      {drawing
-                        ? <><CircularProgress size={20} sx={{ color: 'white', mr: 1 }} />Sorteando...</>
-                        : `🎲 Sortear con ${players.length} jugador${players.length !== 1 ? 'es' : ''}`}
+                      {closing
+                        ? <><CircularProgress size={20} sx={{ color: 'primary.main', mr: 1 }} />Cerrando...</>
+                        : 'Cerrar inscripción (no más entradas)'}
                     </Button>
                   </>
                 ) : (
@@ -307,8 +312,8 @@ export default function AdminPanel() {
             </Card>
           )}
 
-          {/* Enter result (active state) */}
-          {room.status === 'active' && (
+          {/* Enter result — sorteo: available from waiting; pronostico: only after closing */}
+          {(room.status === 'active' || (room.mode === 'sorteo' && room.status === 'waiting')) && (
             <Card sx={{ border: '1px solid rgba(255,215,0,0.3)' }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ mb: 1, ...goldGlow }}>

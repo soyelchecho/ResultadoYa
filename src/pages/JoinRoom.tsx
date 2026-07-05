@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import { useGuestStore } from '@/store/guestStore'
 import type { Room } from '@/types'
-import { scoreLabel } from '@/lib/scores'
+import { scoreLabel, generateScores } from '@/lib/scores'
 import { glowText } from '@/theme'
 
 const MotionBox = motion(Box)
@@ -81,20 +81,40 @@ export default function JoinRoom() {
         return
       }
 
-      // Check room capacity for sorteo mode
+      if (!user) setGuestName(name.trim())
+
+      // For sorteo: pick a random available score right now
+      let scoreHome: number | null = null
+      let scoreAway: number | null = null
+
       if (room.mode === 'sorteo') {
-        const { count } = await supabase
+        const { data: taken } = await supabase
           .from('room_players')
-          .select('*', { count: 'exact', head: true })
+          .select('score_home, score_away')
           .eq('room_id', room.id)
-        const maxSlots = (room.max_goals + 1) * (room.max_goals + 1)
-        if ((count ?? 0) >= maxSlots) {
+
+        const takenSet = new Set(
+          (taken ?? [])
+            .filter(p => p.score_home !== null)
+            .map(p => `${p.score_home}-${p.score_away}`)
+        )
+        const available = generateScores(room.max_goals).filter(
+          s => !takenSet.has(`${s.home}-${s.away}`)
+        )
+
+        if (available.length === 0) {
           setError('La sala está llena. Todos los marcadores ya tienen dueño.')
+          setJoining(false)
           return
         }
-      }
 
-      if (!user) setGuestName(name.trim())
+        const picked = available[Math.floor(Math.random() * available.length)]
+        scoreHome = picked.home
+        scoreAway = picked.away
+      } else {
+        scoreHome = selectedScore?.home ?? null
+        scoreAway = selectedScore?.away ?? null
+      }
 
       const { error: err } = await supabase.from('room_players').insert({
         room_id: room.id,
@@ -102,8 +122,8 @@ export default function JoinRoom() {
         display_name: name.trim(),
         avatar_url: user?.avatar_url ?? null,
         is_guest: !user,
-        score_home: room.mode === 'pronostico' ? selectedScore?.home ?? null : null,
-        score_away: room.mode === 'pronostico' ? selectedScore?.away ?? null : null,
+        score_home: scoreHome,
+        score_away: scoreAway,
       })
       if (err) {
         if (err.code === '23505') {
@@ -275,8 +295,8 @@ export default function JoinRoom() {
           {room && room.mode === 'sorteo' && room.status === 'waiting' && (
             <Card sx={{ p: 2.5, background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.15)' }}>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                🎲 En modo Sorteo, el admin asigna los marcadores al azar cuando cierre el registro.
-                Vas a ver cuál te tocó después del sorteo.
+                🎲 Al unirte se te asigna un marcador al azar de los que quedan disponibles.
+                ¡Lo verás en pantalla inmediatamente!
               </Typography>
             </Card>
           )}
@@ -300,7 +320,7 @@ export default function JoinRoom() {
               ? <><CircularProgress size={20} sx={{ color: 'white', mr: 1 }} />Uniéndome...</>
               : room?.mode === 'pronostico'
                 ? `🎯 Confirmar pronóstico${selectedScore ? ` ${scoreLabel(selectedScore.home, selectedScore.away)}` : ''}`
-                : '⚽ Unirme a la sala'}
+                : '🎲 Unirme y recibir marcador'}
           </Button>
         </Stack>
       </MotionBox>
