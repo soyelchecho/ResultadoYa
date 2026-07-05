@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Box, Button, Card, CardContent, Container, Typography,
   TextField, Stack, Chip, Slider, ToggleButton, ToggleButtonGroup,
-  Alert, CircularProgress, InputAdornment, Divider,
+  Alert, CircularProgress, InputAdornment, Divider, Switch, FormControlLabel,
 } from '@mui/material'
 import { ArrowBack, Google } from '@mui/icons-material'
 import { motion } from 'framer-motion'
@@ -27,6 +27,7 @@ export default function CreateRoom() {
   const [mode, setMode]             = useState<RoomMode>('sorteo')
   const [prizeType, setPrizeType]   = useState<PrizeType>('entry')
   const [entryPrice, setEntryPrice] = useState<number>(10000)
+  const [adminPlays, setAdminPlays] = useState(false)
   const [creating, setCreating]     = useState(false)
   const [error, setError]           = useState('')
   const [signingIn, setSigningIn]   = useState(false)
@@ -52,20 +53,50 @@ export default function CreateRoom() {
     setError('')
     try {
       const code = generateRoomCode()
-      const { error: err } = await supabase.from('rooms').insert({
-        code,
-        name: trimName,
-        team_home: trimHome,
-        team_away: trimAway,
-        max_goals: maxGoals,
-        mode,
-        prize_type: prizeType,
-        status: 'waiting',
-        entry_price: entryPrice,
-        admin_id: user.id,
-        admin_name: user.display_name,
-      })
+      const { data: newRoom, error: err } = await supabase
+        .from('rooms')
+        .insert({
+          code,
+          name: trimName,
+          team_home: trimHome,
+          team_away: trimAway,
+          max_goals: maxGoals,
+          mode,
+          prize_type: prizeType,
+          admin_plays: adminPlays,
+          status: 'waiting',
+          entry_price: entryPrice,
+          admin_id: user.id,
+          admin_name: user.display_name,
+        })
+        .select('id')
+        .single()
       if (err) throw err
+
+      // If admin participates, add them as a player with a random score (sorteo)
+      // or without score (pronostico — they pick later via join flow)
+      if (adminPlays && newRoom) {
+        let adminScoreHome: number | null = null
+        let adminScoreAway: number | null = null
+
+        if (mode === 'sorteo') {
+          const scores = generateScores(maxGoals)
+          const picked = scores[Math.floor(Math.random() * scores.length)]
+          adminScoreHome = picked.home
+          adminScoreAway = picked.away
+        }
+
+        await supabase.from('room_players').insert({
+          room_id: newRoom.id,
+          user_id: user.id,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url ?? null,
+          is_guest: false,
+          score_home: adminScoreHome,
+          score_away: adminScoreAway,
+        })
+      }
+
       navigate(`/sala/${code}`)
     } catch (e: unknown) {
       setError((e as Error).message || 'No se pudo crear la sala.')
@@ -166,11 +197,36 @@ export default function CreateRoom() {
                   🎯 Pronóstico
                 </ToggleButton>
               </ToggleButtonGroup>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                 {mode === 'sorteo'
                   ? 'A cada participante se le asigna un marcador al azar. 1 solo ganador.'
                   : 'Cada participante elige su propio marcador. El pozo se reparte entre los que aciertan.'}
               </Typography>
+              <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', mb: 2 }} />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={adminPlays}
+                    onChange={e => setAdminPlays(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      El admin también participa
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {adminPlays
+                        ? mode === 'sorteo'
+                          ? 'Se te asignará un marcador al azar al crear la sala.'
+                          : 'Podrás ingresar tu pronóstico al unirte a la sala.'
+                        : 'Solo gestionás el sorteo, no competís.'}
+                    </Typography>
+                  </Box>
+                }
+                sx={{ alignItems: 'flex-start', m: 0 }}
+              />
             </CardContent>
           </Card>
 
