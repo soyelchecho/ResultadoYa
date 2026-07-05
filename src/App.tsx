@@ -34,7 +34,7 @@ export default function App() {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser({
           id: session.user.id,
@@ -42,7 +42,7 @@ export default function App() {
           display_name: session.user.user_metadata?.full_name ?? session.user.email ?? 'Admin',
           avatar_url: session.user.user_metadata?.avatar_url,
         })
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setUser(null)
       }
     })
