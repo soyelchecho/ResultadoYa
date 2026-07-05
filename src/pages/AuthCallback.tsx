@@ -7,24 +7,30 @@ export default function AuthCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // With implicit flow (#access_token=...), Supabase processes the token
-    // during initialization — before React mounts. So SIGNED_IN already fired.
-    // onAuthStateChange replays INITIAL_SESSION synchronously when you subscribe,
-    // so we handle both INITIAL_SESSION (session already set) and SIGNED_IN (race win).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-        navigate('/crear', { replace: true })
-      } else if (event === 'SIGNED_OUT') {
-        navigate('/', { replace: true })
-      }
-    })
+    // Implicit flow: tokens are in the URL hash (#access_token=...&refresh_token=...)
+    // Parse them directly and call setSession() — most reliable approach.
+    const hash = window.location.hash.slice(1)  // remove '#'
+    const params = new URLSearchParams(hash)
+    const accessToken  = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
 
-    const timer = setTimeout(() => navigate('/', { replace: true }), 6000)
-
-    return () => {
-      subscription.unsubscribe()
-      clearTimeout(timer)
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ data, error }) => {
+          if (data.session) {
+            navigate('/crear', { replace: true })
+          } else {
+            console.error('setSession error:', error)
+            navigate('/', { replace: true })
+          }
+        })
+      return
     }
+
+    // Fallback: maybe already have a session (e.g. page refresh)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      navigate(session ? '/crear' : '/', { replace: true })
+    })
   }, [navigate])
 
   return (
