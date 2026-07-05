@@ -50,7 +50,7 @@ const features = [
 
 export default function Landing() {
   const navigate = useNavigate()
-  const { user, signInWithGoogle } = useAuthStore()
+  const { user, signInWithGoogle, signOut } = useAuthStore()
   const [signingIn, setSigningIn]   = useState(false)
   const [email, setEmail]           = useState('')
   const [emailChecking, setEmailChecking] = useState(false)
@@ -197,9 +197,18 @@ export default function Landing() {
                 </Stack>
 
                 {user && (
-                  <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
-                    Logueado como <strong style={{ color: '#22C55E' }}>{user.display_name}</strong>
-                  </Typography>
+                  <Stack direction="row" alignItems="center" spacing={1.5} mt={2}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Logueado como <strong style={{ color: '#22C55E' }}>{user.display_name}</strong>
+                    </Typography>
+                    <Button
+                      size="small"
+                      onClick={() => signOut()}
+                      sx={{ color: 'text.secondary', fontSize: '0.75rem', minWidth: 0, p: '2px 8px' }}
+                    >
+                      Cerrar sesión
+                    </Button>
+                  </Stack>
                 )}
 
                 {/* Email lookup for invited players */}

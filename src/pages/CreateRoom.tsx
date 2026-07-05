@@ -18,7 +18,7 @@ const MotionBox = motion(Box)
 
 export default function CreateRoom() {
   const navigate = useNavigate()
-  const { user, signInWithGoogle } = useAuthStore()
+  const { user, signInWithGoogle, signOut } = useAuthStore()
 
   const [name, setName]             = useState('')
   const [teamHome, setTeamHome]     = useState('')
@@ -209,13 +209,22 @@ export default function CreateRoom() {
     <Container maxWidth="sm" sx={{ py: 4 }}>
       <MotionBox initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
 
-        <Button
-          startIcon={<ArrowBack />}
-          onClick={() => navigate('/')}
-          sx={{ mb: 3, color: 'text.secondary' }}
-        >
-          Volver
-        </Button>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={() => navigate('/')}
+            sx={{ color: 'text.secondary' }}
+          >
+            Volver
+          </Button>
+          <Button
+            size="small"
+            onClick={() => signOut()}
+            sx={{ color: 'text.secondary', fontSize: '0.75rem' }}
+          >
+            Cerrar sesión
+          </Button>
+        </Box>
 
         <Typography variant="h2" sx={{ fontSize: '2.5rem', mb: 0.5, ...glowText() }}>
           NUEVA SALA
