@@ -7,21 +7,19 @@ export default function AuthCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // PKCE: getSession() triggers the code exchange when ?code= is in the URL.
-    // We listen for the SIGNED_IN event which fires once the exchange completes.
+    // With implicit flow (#access_token=...), Supabase processes the token
+    // during initialization — before React mounts. So SIGNED_IN already fired.
+    // onAuthStateChange replays INITIAL_SESSION synchronously when you subscribe,
+    // so we handle both INITIAL_SESSION (session already set) and SIGNED_IN (race win).
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
         navigate('/crear', { replace: true })
       } else if (event === 'SIGNED_OUT') {
         navigate('/', { replace: true })
       }
     })
 
-    // Kick off the exchange (detects ?code= in the URL automatically)
-    supabase.auth.getSession()
-
-    // Fallback: if nothing fires in 8s, go home
-    const timer = setTimeout(() => navigate('/', { replace: true }), 8000)
+    const timer = setTimeout(() => navigate('/', { replace: true }), 6000)
 
     return () => {
       subscription.unsubscribe()
